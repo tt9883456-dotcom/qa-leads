@@ -1,18 +1,32 @@
-import csv
-import os
-from datetime import datetime
+name: Test Lead Collector
 
-filename = 'leads.csv'
-file_exists = os.path.isfile(filename)
+on:
+  workflow_dispatch: # Кнопка для ручного запуска
+  schedule:
+    - cron: '*/5 * * * *' # Запуск каждые 5 минут
 
-# Открываем файл для добавления записей
-with open(filename, mode='a', newline='', encoding='utf-8') as f:
-    writer = csv.writer(f)
-    if not file_exists:
-        writer.writerow(['timestamp', 'source', 'text', 'url'])
-    
-    # Пока пишем тестовую заявку, чтобы проверить сохранение
-    now = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-    writer.writerow([now, 'Тест', 'Ищу специалиста по аудиту', 'https://example.com'])
+permissions:
+  contents: write # РАЗРЕШАЕМ скрипту сохранять файлы в репозиторий
 
-print("Данные успешно записаны в leads.csv")
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          
+      - name: Run script
+        run: python main.py
+        
+      - name: Commit and push changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add leads.csv
+          git commit -m "Update leads" || echo "No changes to commit"
+          git push
