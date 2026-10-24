@@ -1,12 +1,12 @@
-name: Test Lead Collector
+name: Shikari Clone
 
 on:
-  workflow_dispatch: # Кнопка для ручного запуска
+  workflow_dispatch: 
   schedule:
-    - cron: '*/5 * * * *' # Запуск каждые 5 минут
+    - cron: '*/15 * * * *'
 
 permissions:
-  contents: write # РАЗРЕШАЕМ скрипту сохранять файлы в репозиторий
+  contents: write
 
 jobs:
   build:
@@ -20,6 +20,9 @@ jobs:
         with:
           python-version: '3.11'
           
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4
+          
       - name: Run script
         run: python main.py
         
@@ -27,6 +30,6 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add leads.csv
+          git add .
           git commit -m "Update leads" || echo "No changes to commit"
-          git push
+          git push origin HEAD:main
