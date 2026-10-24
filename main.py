@@ -1,27 +1,30 @@
 import csv
 import os
 import requests
-import feedparser
 import time
-import re
 from datetime import datetime
 
+# Берем токен из секретов GitHub
+VK_TOKEN = os.environ.get("VK_TOKEN")
+if not VK_TOKEN:
+    print("Ошибка: нет VK_TOKEN в переменных окружения!")
+    exit(1)
+
 CSV_FILE = 'leads.csv'
+VERSION = '5.199'
 
-# Только доски заказов! Убрали QualityAssurance, cybersecurity и т.д.
-SUBREDDITS = ["forhire", "DesignJobs", "forHireDevelopers"]
-
-# Наши услуги
-KEYWORDS = [
-    "qa", "seo", "audit", "bot", "chatbot", "automation", 
-    "pentest", "vulnerability", "security", "parser",
-    "ai", "gpt", "llm", "agent", "assistant", "нейросеть"
+# Наши услуги: QA, SEO, Аудит, Боты, ИИ
+QUERIES = [
+    "ищу qa", "нужен тестировщик", "аудит сайта", 
+    "нужен seo", "ищу сео", "написать бота", 
+    "нейросеть", "автоматизация бизнеса", "аудит безопасности",
+    "пентест", "ии сотрудник", "парсинг"
 ]
 
-# Стоп-слова (вакансии на полный день)
+# Стоп-слова: чтобы не тащить вакансии и тех, кто ищет работу
 STOP_WORDS = [
-    "senior", "lead", "manager", "director", "full-time", "full time", 
-    "clearance", "years of experience", "administrator", "translation", "truckers"
+    "ищу работу", "резюме", "вакансия", "куплю курс", 
+    "обучение", "зарплата", "офис", "обязанности", "требования"
 ]
 
 existing_urls = set()
@@ -32,7 +35,7 @@ if os.path.isfile(CSV_FILE):
             if len(row) > 3:
                 existing_urls.add(row[3])
 
-def save_lead(source, text, link):
+def save_lead(query, text, link):
     if link in existing_urls:
         return
     file_exists = os.path.isfile(CSV_FILE)
@@ -41,45 +44,53 @@ def save_lead(source, text, link):
         if not file_exists:
             writer.writerow(['timestamp', 'source', 'text', 'url'])
         now = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-        writer.writerow([now, source, text[:300].replace('\n', ' '), link])
+        writer.writerow([now, f"VK ({query})", text[:500].replace('\n', ' '), link])
     existing_urls.add(link)
-    print(f"Найдена заявка: {link}")
+    print(f"🔥 Найдена заявка по '{query}': {link}")
 
-def parse_reddit():
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-    
-    for sub in SUBREDDITS:
-        print(f"Сканируем r/{sub}...")
-        url = f"https://www.reddit.com/r/{sub}/new/.rss"
+def parse_vk():
+    url = "https://api.vk.com/method/newsfeed.search"
+    for q in QUERIES:
+        print(f"Сканируем VK по запросу: {q}...")
+        params = {
+            "q": q,
+            "count": 50,  # Берем последние 50 постов
+            "access_token": VK_TOKEN,
+            "v": VERSION
+        }
         try:
-            r = requests.get(url, headers=headers, timeout=15)
-            if r.status_code != 200:
-                print(f"Ошибка {r.status_code}. Пропускаем.")
+            r = requests.get(url, params=params, timeout=15)
+            data = r.json()
+            
+            # Если VK вернул ошибку (например, токен не тот)
+            if 'error' in data:
+                print(f"Ошибка VK API: {data['error'].get('error_msg')}")
                 continue
                 
-            feed = feedparser.parse(r.text)
-            for entry in feed.entries:
-                title = entry.get('title', '')
-                link = entry.get('link', '')
-                title_lower = title.lower()
-                
-                # ЖЕСТКИЙ ФИЛЬТР: берем только заголовки, где есть [Hiring] или слово hiring
-                if "[hiring]" not in title_lower and "hiring" not in title_lower:
-                    continue
-                    
-                # Отсекаем стоп-слова
-                if any(re.search(r'\b' + re.escape(stop) + r'\b', title_lower) for stop in STOP_WORDS):
+            items = data.get('response', {}).get('items', [])
+            found = 0
+            for item in items:
+                text = item.get('text', '')
+                if not text:
                     continue
                 
-                # Ищем наши ключевые слова
-                if any(re.search(r'\b' + re.escape(kw) + r'\b', title_lower) for kw in KEYWORDS):
-                    save_lead(f"Reddit r/{sub}", title, link)
-                    
-        except Exception as e:
-            print(f"Сбой r/{sub}: {e}")
+                text_lower = text.lower()
+                # Проверяем стоп-слова (если это вакансия или резюме — пропускаем)
+                if any(stop in text_lower for stop in STOP_WORDS):
+                    continue
+                
+                # Собираем ссылку на пост
+                link = f"https://vk.com/wall{item.get('owner_id')}_{item.get('id')}"
+                save_lead(q, text, link)
+                found += 1
             
-        time.sleep(5)
+            print(f"  -> Найдено постов по '{q}': {found}")
+            
+        except Exception as e:
+            print(f"Сбой VK по '{q}': {e}")
+        
+        time.sleep(2)  # Пауза 2 секунды, чтобы VK не забанил за частые запросы
 
 if __name__ == "__main__":
-    parse_reddit()
+    parse_vk()
     print("Сбор завершен.")
