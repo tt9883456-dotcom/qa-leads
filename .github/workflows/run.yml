@@ -3,7 +3,7 @@ name: Shikari VK Clone
 on:
   workflow_dispatch: 
   schedule:
-    - cron: '*/30 * * * *' # Запуск каждые 30 минут
+    - cron: '0 */2 * * *' # Запуск каждые 2 часа
 
 permissions:
   contents: write
