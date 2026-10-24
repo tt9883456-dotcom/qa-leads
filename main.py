@@ -3,26 +3,24 @@ import os
 import requests
 import feedparser
 import time
+import re
 from datetime import datetime
-from bs4 import BeautifulSoup
 
 CSV_FILE = 'leads.csv'
 
 SUBREDDITS = ["forhire", "QualityAssurance", "cybersecurity", "webdev", "artificial", "OpenAI"]
 
-# Ключевые слова под ВСЕ твои услуги: QA, SEO, Аудит безопасности, Боты, ИИ-сотрудники
+# Наши услуги (QA, SEO, Аудит, Боты, ИИ-сотрудники)
 KEYWORDS = [
-    "qa", "seo", "audit", 
-    "bot", "chatbot", "automation", 
-    "pentest", "vulnerability", "security audit", 
-    "ai", "gpt", "llm", "agent", "assistant", "parser",
-    "нейросеть"
+    "qa", "seo", "audit", "bot", "chatbot", "automation", 
+    "pentest", "vulnerability", "security", "parser",
+    "ai", "gpt", "llm", "agent", "assistant", "нейросеть"
 ]
 
-# Стоп-слова: отсекаем вакансии на полный день и сисадминов
+# Стоп-слова (вакансии)
 STOP_WORDS = [
     "senior", "lead", "manager", "director", "full-time", "full time", 
-    "clearance", "years of experience", "administrator"
+    "clearance", "years of experience", "administrator", "translation", "truckers"
 ]
 
 existing_urls = set()
@@ -62,22 +60,18 @@ def parse_reddit():
             for entry in feed.entries:
                 title = entry.get('title', '')
                 link = entry.get('link', '')
+                title_lower = title.lower()
                 
-                # Отсекаем фрилансеров, которые предлагают себя
-                if "[hiring]" not in title.lower() and "[for hire]" in title.lower():
+                # Отсекаем фрилансеров
+                if "[hiring]" not in title_lower and "[for hire]" in title_lower:
                     continue
                     
-                raw_summary = entry.get('summary', '')
-                soup = BeautifulSoup(raw_summary, 'html.parser')
-                clean_text = soup.get_text(separator=' ').lower()
-                full_text = f"{title.lower()} {clean_text}"
-                
-                # Проверяем стоп-слова (если есть сисадмин или сеньор — пропускаем)
-                if any(stop in full_text for stop in STOP_WORDS):
+                # Стоп-слова проверяем как целые слова в заголовке
+                if any(re.search(r'\b' + re.escape(stop) + r'\b', title_lower) for stop in STOP_WORDS):
                     continue
                 
-                # Ищем наши ключевые слова (QA, SEO, Аудит, Боты, ИИ)
-                if any(kw in full_text for kw in KEYWORDS):
+                # Ключевые слова проверяем как целые слова в заголовке
+                if any(re.search(r'\b' + re.escape(kw) + r'\b', title_lower) for kw in KEYWORDS):
                     save_lead(f"Reddit r/{sub}", title, link)
                     
         except Exception as e:
