@@ -1,9 +1,9 @@
-name: Shikari Clone
+name: Shikari VK Clone
 
 on:
   workflow_dispatch: 
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '*/30 * * * *' # Запуск каждые 30 минут
 
 permissions:
   contents: write
@@ -21,15 +21,17 @@ jobs:
           python-version: '3.11'
           
       - name: Install dependencies
-        run: pip install requests feedparser beautifulsoup4
+        run: pip install requests
           
       - name: Run script
         run: python main.py
+        env:
+          VK_TOKEN: ${{ secrets.VK_TOKEN }}
         
       - name: Commit and push changes
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add .
-          git commit -m "Update leads" || echo "No changes to commit"
+          git commit -m "Update VK leads" || echo "No changes to commit"
           git push origin HEAD:main
