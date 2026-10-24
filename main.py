@@ -8,9 +8,7 @@ from bs4 import BeautifulSoup
 
 CSV_FILE = 'leads.csv'
 
-# Сабреддиты для проверки
 SUBREDDITS = ["forhire", "QualityAssurance", "cybersecurity", "webdev"]
-# Ключевые слова (QA, SEO, аудит, боты, безопасность)
 KEYWORDS = ["qa", "seo", "audit", "bot", "automation", "pentest", "vulnerability", "security"]
 
 existing_urls = set()
@@ -51,23 +49,20 @@ def parse_reddit():
                 title = entry.get('title', '')
                 link = entry.get('link', '')
                 
-                # 1. Отсекаем фрилансеров (ищем только [Hiring])
                 if "[hiring]" not in title.lower() and "[for hire]" in title.lower():
                     continue
                     
-                # 2. Чистим HTML из тела поста
                 raw_summary = entry.get('summary', '')
                 soup = BeautifulSoup(raw_summary, 'html.parser')
                 clean_text = soup.get_text(separator=' ').lower()
                 
-                # 3. Ищем ключевые слова
                 if any(kw in clean_text or kw in title.lower() for kw in KEYWORDS):
                     save_lead(f"Reddit r/{sub}", title, link)
                     
         except Exception as e:
             print(f"Сбой r/{sub}: {e}")
             
-        time.sleep(5) # Пауза 5 секунд, чтобы Reddit не забанил
+        time.sleep(5)
 
 if __name__ == "__main__":
     parse_reddit()
