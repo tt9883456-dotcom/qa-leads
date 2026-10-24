@@ -1,9 +1,9 @@
-name: Shikari VK Clone
+name: TG Web Parser
 
 on:
   workflow_dispatch: 
   schedule:
-    - cron: '0 */2 * * *' # Запуск каждые 2 часа
+    - cron: '0 */2 * * *' # Каждые 2 часа
 
 permissions:
   contents: write
@@ -21,17 +21,15 @@ jobs:
           python-version: '3.11'
           
       - name: Install dependencies
-        run: pip install requests
+        run: pip install requests beautifulsoup4
           
       - name: Run script
         run: python main.py
-        env:
-          VK_TOKEN: ${{ secrets.VK_TOKEN }}
         
       - name: Commit and push changes
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add .
-          git commit -m "Update VK leads" || echo "No changes to commit"
+          git commit -m "Update TG leads" || echo "No changes to commit"
           git push origin HEAD:main
