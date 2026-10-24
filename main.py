@@ -8,8 +8,22 @@ from bs4 import BeautifulSoup
 
 CSV_FILE = 'leads.csv'
 
-SUBREDDITS = ["forhire", "QualityAssurance", "cybersecurity", "webdev"]
-KEYWORDS = ["qa", "seo", "audit", "bot", "automation", "pentest", "vulnerability", "security"]
+SUBREDDITS = ["forhire", "QualityAssurance", "cybersecurity", "webdev", "artificial", "OpenAI"]
+
+# Ключевые слова под ВСЕ твои услуги: QA, SEO, Аудит безопасности, Боты, ИИ-сотрудники
+KEYWORDS = [
+    "qa", "seo", "audit", 
+    "bot", "chatbot", "automation", 
+    "pentest", "vulnerability", "security audit", 
+    "ai", "gpt", "llm", "agent", "assistant", "parser",
+    "нейросеть"
+]
+
+# Стоп-слова: отсекаем вакансии на полный день и сисадминов
+STOP_WORDS = [
+    "senior", "lead", "manager", "director", "full-time", "full time", 
+    "clearance", "years of experience", "administrator"
+]
 
 existing_urls = set()
 if os.path.isfile(CSV_FILE):
@@ -30,10 +44,10 @@ def save_lead(source, text, link):
         now = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
         writer.writerow([now, source, text[:300].replace('\n', ' '), link])
     existing_urls.add(link)
-    print(f"🔥 Найдена заявка: {link}")
+    print(f"Найдена заявка: {link}")
 
 def parse_reddit():
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
     
     for sub in SUBREDDITS:
         print(f"Сканируем r/{sub}...")
@@ -49,14 +63,21 @@ def parse_reddit():
                 title = entry.get('title', '')
                 link = entry.get('link', '')
                 
+                # Отсекаем фрилансеров, которые предлагают себя
                 if "[hiring]" not in title.lower() and "[for hire]" in title.lower():
                     continue
                     
                 raw_summary = entry.get('summary', '')
                 soup = BeautifulSoup(raw_summary, 'html.parser')
                 clean_text = soup.get_text(separator=' ').lower()
+                full_text = f"{title.lower()} {clean_text}"
                 
-                if any(kw in clean_text or kw in title.lower() for kw in KEYWORDS):
+                # Проверяем стоп-слова (если есть сисадмин или сеньор — пропускаем)
+                if any(stop in full_text for stop in STOP_WORDS):
+                    continue
+                
+                # Ищем наши ключевые слова (QA, SEO, Аудит, Боты, ИИ)
+                if any(kw in full_text for kw in KEYWORDS):
                     save_lead(f"Reddit r/{sub}", title, link)
                     
         except Exception as e:
