@@ -2,30 +2,30 @@ import csv
 import os
 import requests
 import time
+import re
 from datetime import datetime
-
-# Берем токен из секретов GitHub
-VK_TOKEN = os.environ.get("VK_TOKEN")
-if not VK_TOKEN:
-    print("Ошибка: нет VK_TOKEN в переменных окружения!")
-    exit(1)
+from bs4 import BeautifulSoup
 
 CSV_FILE = 'leads.csv'
-VERSION = '5.199'
 
-# Расширенный список запросов (QA, SEO, Аудит, Боты, ИИ)
-QUERIES = [
-    "ищу qa", "нужен тестировщик", "тестирование сайта", "аудит кода", "проверить сайт",
-    "ищу сео", "нужен seo", "продвижение сайта", "аудит сайта", "оптимизация сайта",
-    "написать бота", "нужен бот", "чат бот", "телеграм бот", "парсинг сайта",
-    "нейросеть", "внедрение ии", "ии сотрудник", "автоматизация бизнеса", "gpt",
-    "пентест", "аудит безопасности", "уязвимости сайта", "проверка на взлом"
+# Каналы с заказами (веб-версии открываются без VPN)
+CHANNELS = [
+    "freelance_seo_work", 
+    "qa_jobs", 
+    "forhabr", 
+    "freelance_ru"
 ]
 
-# Стоп-слова: чтобы не тащить вакансии и тех, кто ищет работу
+# Ключевые слова
+KEYWORDS = [
+    "ищу", "нужен", "нужна", "аудит", "qa", "тестировщик", 
+    "seo", "сео", "бот", "нейросеть", "ии", "автоматизация"
+]
+
+# Стоп-слова
 STOP_WORDS = [
     "ищу работу", "резюме", "вакансия", "куплю курс", 
-    "обучение", "зарплата", "офис", "обязанности", "требования"
+    "обучение", "зарплата", "офис", "обязанности"
 ]
 
 existing_urls = set()
@@ -36,7 +36,7 @@ if os.path.isfile(CSV_FILE):
             if len(row) > 3:
                 existing_urls.add(row[3])
 
-def save_lead(query, text, link):
+def save_lead(source, text, link):
     if link in existing_urls:
         return
     file_exists = os.path.isfile(CSV_FILE)
@@ -45,57 +45,51 @@ def save_lead(query, text, link):
         if not file_exists:
             writer.writerow(['timestamp', 'source', 'text', 'url'])
         now = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-        writer.writerow([now, f"VK ({query})", text[:500].replace('\n', ' '), link])
+        writer.writerow([now, source, text[:300].replace('\n', ' '), link])
     existing_urls.add(link)
-    print(f"🔥 Найдена заявка по '{query}': {link}")
+    print(f"🔥 Найдена заявка: {link}")
 
-def parse_vk():
-    url = "https://api.vk.com/method/newsfeed.search"
-    for q in QUERIES:
-        print(f"Сканируем VK по запросу: {q}...")
-        params = {
-            "q": q,
-            "count": 50,
-            "access_token": VK_TOKEN,
-            "v": VERSION
-        }
+def parse_telegram_web():
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+    
+    for channel in CHANNELS:
+        print(f"Сканируем канал: {channel}...")
+        url = f"https://t.me/s/{channel}"
         try:
-            r = requests.get(url, params=params, timeout=15)
-            data = r.json()
-            
-            # Если VK вернул ошибку (например, Flood control)
-            if 'error' in data:
-                print(f"Ошибка VK API: {data['error'].get('error_msg')}")
-                print("Ждем 30 секунд из-за ошибки...")
-                time.sleep(30)
+            r = requests.get(url, headers=headers, timeout=15)
+            if r.status_code != 200:
+                print(f"Ошибка {r.status_code}. Пропускаем.")
                 continue
                 
-            items = data.get('response', {}).get('items', [])
-            found = 0
-            for item in items:
-                text = item.get('text', '')
-                if not text:
+            soup = BeautifulSoup(r.text, 'html.parser')
+            # Ищем все сообщения на странице
+            messages = soup.find_all('div', class_='tgme_widget_message_wrap')
+            
+            for msg in messages:
+                text_div = msg.find('div', class_='tgme_widget_message_text')
+                if not text_div:
                     continue
-                
+                    
+                text = text_div.get_text(separator=' ', strip=True)
                 text_lower = text.lower()
-                # Проверяем стоп-слова (если это вакансия или резюме — пропускаем)
+                
+                # Проверяем стоп-слова
                 if any(stop in text_lower for stop in STOP_WORDS):
                     continue
-                
-                # Собираем ссылку на пост
-                link = f"https://vk.com/wall{item.get('owner_id')}_{item.get('id')}"
-                save_lead(q, text, link)
-                found += 1
-            
-            print(f"  -> Найдено постов по '{q}': {found}")
-            
+                    
+                # Ищем ключевые слова
+                if any(re.search(r'\b' + re.escape(kw) + r'\b', text_lower) for kw in KEYWORDS):
+                    # Ищем ссылку на это сообщение
+                    link_tag = msg.find('a', class_='tgme_widget_message_date')
+                    if link_tag:
+                        link = link_tag['href']
+                        save_lead(f"TG @{channel}", text, link)
+                        
         except Exception as e:
-            print(f"Сбой VK по '{q}': {e}")
-        
-        # Пауза 15 секунд, чтобы VK не забанил за частые запросы
-        print("Пауза 15 секунд...")
-        time.sleep(15)
+            print(f"Сбой канала {channel}: {e}")
+            
+        time.sleep(3)
 
 if __name__ == "__main__":
-    parse_vk()
+    parse_telegram_web()
     print("Сбор завершен.")
