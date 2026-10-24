@@ -8,16 +8,17 @@ from datetime import datetime
 
 CSV_FILE = 'leads.csv'
 
-SUBREDDITS = ["forhire", "QualityAssurance", "cybersecurity", "webdev", "artificial", "OpenAI"]
+# Только доски заказов! Убрали QualityAssurance, cybersecurity и т.д.
+SUBREDDITS = ["forhire", "DesignJobs", "forHireDevelopers"]
 
-# Наши услуги (QA, SEO, Аудит, Боты, ИИ-сотрудники)
+# Наши услуги
 KEYWORDS = [
     "qa", "seo", "audit", "bot", "chatbot", "automation", 
     "pentest", "vulnerability", "security", "parser",
     "ai", "gpt", "llm", "agent", "assistant", "нейросеть"
 ]
 
-# Стоп-слова (вакансии)
+# Стоп-слова (вакансии на полный день)
 STOP_WORDS = [
     "senior", "lead", "manager", "director", "full-time", "full time", 
     "clearance", "years of experience", "administrator", "translation", "truckers"
@@ -62,15 +63,15 @@ def parse_reddit():
                 link = entry.get('link', '')
                 title_lower = title.lower()
                 
-                # Отсекаем фрилансеров
-                if "[hiring]" not in title_lower and "[for hire]" in title_lower:
+                # ЖЕСТКИЙ ФИЛЬТР: берем только заголовки, где есть [Hiring] или слово hiring
+                if "[hiring]" not in title_lower and "hiring" not in title_lower:
                     continue
                     
-                # Стоп-слова проверяем как целые слова в заголовке
+                # Отсекаем стоп-слова
                 if any(re.search(r'\b' + re.escape(stop) + r'\b', title_lower) for stop in STOP_WORDS):
                     continue
                 
-                # Ключевые слова проверяем как целые слова в заголовке
+                # Ищем наши ключевые слова
                 if any(re.search(r'\b' + re.escape(kw) + r'\b', title_lower) for kw in KEYWORDS):
                     save_lead(f"Reddit r/{sub}", title, link)
                     
