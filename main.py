@@ -8,24 +8,26 @@ from bs4 import BeautifulSoup
 
 CSV_FILE = 'leads.csv'
 
-# Каналы с заказами (веб-версии открываются без VPN)
+# Каналы с ЖИВЫМИ сообществами (а не биржевые ленты)
 CHANNELS = [
-    "freelance_seo_work", 
-    "qa_jobs", 
-    "forhabr", 
-    "freelance_ru"
+    "searchengines",      # Форум вебмастеров (там часто ищут аудит и сео)
+    "nocode_ru",          # Сообщество автоматизаторов (боты, парсинг)
+    "make_ru",            # Еще одно крупное сообщество по автоматизации
+    "startup_ideas_ru",   # Стартапы (ищут QA, разработчиков)
+    "webmaster_chat"      # Общий чат вебмастеров
 ]
 
 # Ключевые слова
 KEYWORDS = [
     "ищу", "нужен", "нужна", "аудит", "qa", "тестировщик", 
-    "seo", "сео", "бот", "нейросеть", "ии", "автоматизация"
+    "seo", "сео", "бот", "нейросеть", "ии", "автоматизация", "парсинг"
 ]
 
-# Стоп-слова
+# Стоп-слова: отсекаем биржи, вакансии и поиск работы
 STOP_WORDS = [
     "ищу работу", "резюме", "вакансия", "куплю курс", 
-    "обучение", "зарплата", "офис", "обязанности"
+    "обучение", "зарплата", "офис", "обязанности",
+    "kwork", "кворк", "fl.ru", "фриланс", "биржа" # <--- АНТИ-БИРЖЕВОЙ ФИЛЬТР
 ]
 
 existing_urls = set()
@@ -58,11 +60,10 @@ def parse_telegram_web():
         try:
             r = requests.get(url, headers=headers, timeout=15)
             if r.status_code != 200:
-                print(f"Ошибка {r.status_code}. Пропускаем.")
+                print(f"Ошибка {r.status_code} (возможно канал закрыт). Пропускаем.")
                 continue
                 
             soup = BeautifulSoup(r.text, 'html.parser')
-            # Ищем все сообщения на странице
             messages = soup.find_all('div', class_='tgme_widget_message_wrap')
             
             for msg in messages:
@@ -73,13 +74,12 @@ def parse_telegram_web():
                 text = text_div.get_text(separator=' ', strip=True)
                 text_lower = text.lower()
                 
-                # Проверяем стоп-слова
+                # Проверяем стоп-слова (включая кворк)
                 if any(stop in text_lower for stop in STOP_WORDS):
                     continue
                     
                 # Ищем ключевые слова
                 if any(re.search(r'\b' + re.escape(kw) + r'\b', text_lower) for kw in KEYWORDS):
-                    # Ищем ссылку на это сообщение
                     link_tag = msg.find('a', class_='tgme_widget_message_date')
                     if link_tag:
                         link = link_tag['href']
