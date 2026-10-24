@@ -4,22 +4,25 @@ import requests
 import time
 from datetime import datetime
 
+# Берем токен из секретов GitHub
 VK_TOKEN = os.environ.get("VK_TOKEN")
 if not VK_TOKEN:
-    print("Ошибка: нет VK_TOKEN")
+    print("Ошибка: нет VK_TOKEN в переменных окружения!")
     exit(1)
 
 CSV_FILE = 'leads.csv'
 VERSION = '5.199'
 
-# Только 4 самых важных запроса, чтобы не злить VK
+# Расширенный список запросов (QA, SEO, Аудит, Боты, ИИ)
 QUERIES = [
-    "ищу qa", 
-    "нужен бот", 
-    "аудит сайта", 
-    "написать нейросеть"
+    "ищу qa", "нужен тестировщик", "тестирование сайта", "аудит кода", "проверить сайт",
+    "ищу сео", "нужен seo", "продвижение сайта", "аудит сайта", "оптимизация сайта",
+    "написать бота", "нужен бот", "чат бот", "телеграм бот", "парсинг сайта",
+    "нейросеть", "внедрение ии", "ии сотрудник", "автоматизация бизнеса", "gpt",
+    "пентест", "аудит безопасности", "уязвимости сайта", "проверка на взлом"
 ]
 
+# Стоп-слова: чтобы не тащить вакансии и тех, кто ищет работу
 STOP_WORDS = [
     "ищу работу", "резюме", "вакансия", "куплю курс", 
     "обучение", "зарплата", "офис", "обязанности", "требования"
@@ -60,6 +63,7 @@ def parse_vk():
             r = requests.get(url, params=params, timeout=15)
             data = r.json()
             
+            # Если VK вернул ошибку (например, Flood control)
             if 'error' in data:
                 print(f"Ошибка VK API: {data['error'].get('error_msg')}")
                 print("Ждем 30 секунд из-за ошибки...")
@@ -70,12 +74,15 @@ def parse_vk():
             found = 0
             for item in items:
                 text = item.get('text', '')
-                if not text: continue
+                if not text:
+                    continue
                 
                 text_lower = text.lower()
+                # Проверяем стоп-слова (если это вакансия или резюме — пропускаем)
                 if any(stop in text_lower for stop in STOP_WORDS):
                     continue
                 
+                # Собираем ссылку на пост
                 link = f"https://vk.com/wall{item.get('owner_id')}_{item.get('id')}"
                 save_lead(q, text, link)
                 found += 1
@@ -85,8 +92,8 @@ def parse_vk():
         except Exception as e:
             print(f"Сбой VK по '{q}': {e}")
         
-        # Увеличили паузу до 15 секунд
-        print("Пауза 15 секунд, чтобы VK не забанил...")
+        # Пауза 15 секунд, чтобы VK не забанил за частые запросы
+        print("Пауза 15 секунд...")
         time.sleep(15)
 
 if __name__ == "__main__":
